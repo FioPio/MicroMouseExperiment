@@ -6,14 +6,9 @@
 
 void Simulator::BasicMazeInfo::initMazeGird() {
 
-    // Allocate the maze full of walls
-    maze = new CellData*[num_rows];
+    for (int num_row = 0; num_row < MAZE_HEIGHT; num_row++) {
 
-    for (int num_row = 0; num_row < num_rows; num_row++) {
-
-        maze[num_row] = new CellData [num_cols];
-
-        for (int num_col = 0; num_col < num_cols; num_col++) {
+        for (int num_col = 0; num_col < MAZE_WIDTH; num_col++) {
             
             maze[num_row][num_col].accessible = false;
             for (int num_wall = 0; num_wall < 4; num_wall++) {
@@ -25,15 +20,9 @@ void Simulator::BasicMazeInfo::initMazeGird() {
 }
 
 
-void Simulator::BasicMazeInfo::setMazeWidth(int width) {
+bool Simulator::BasicMazeInfo::hasWall(int x, int y, Direction direction) {
 
-    num_cols = width;
-}
-
-
-void Simulator::BasicMazeInfo::setMazeHeight(int height) {
-
-    num_rows = height;
+    return maze[y][x].walls[direction];
 }
 
 
@@ -48,13 +37,13 @@ std::vector<Direction> Simulator::BasicMazeInfo::getNonVisitedNeighbors(int x, i
     }
 
     // Right
-    if (x < num_cols -1 && !maze[y][x+1].accessible){
+    if (x < MAZE_WIDTH -1 && !maze[y][x+1].accessible){
 
         non_visited.push_back(RIGHT);
     }
 
     // Bottom
-    if (y < num_rows - 1 && !maze[y+1][x].accessible){
+    if (y < MAZE_HEIGHT - 1 && !maze[y+1][x].accessible){
 
         non_visited.push_back(DOWN);
     }
@@ -66,29 +55,6 @@ std::vector<Direction> Simulator::BasicMazeInfo::getNonVisitedNeighbors(int x, i
     }
 
     return non_visited;
-}
-
-
-void Simulator::BasicMazeInfo::getNeighbor(int& x, int& y, Direction direction) {
-
-    switch(direction) {
-
-        case UP:
-            y--;
-            break;
-        
-        case RIGHT:
-            x++;
-            break;
-        
-        case DOWN:
-            y++;
-            break;
-        
-        case LEFT:
-            x--;
-            break;
-    }
 }
 
 
@@ -124,10 +90,7 @@ std::string Simulator::BasicMazeInfo::getFrameName() {
     return frame_name;
 }
 
-Simulator::Maze::Maze( int _num_rows, int _num_cols) {
-
-    setMazeWidth(_num_cols);
-    setMazeHeight(_num_rows);
+Simulator::Maze::Maze() {
 
     generateRandomMaze();
 
@@ -141,8 +104,6 @@ void Simulator::Maze::generateRandomMaze() {
 
     initMazeGird();
     
-    int num_cols = getMazeWidth();
-    int num_rows = getMazeHeight();
     // Using the algorithm Recursive backtracker to
     // create it
 
@@ -177,18 +138,18 @@ void Simulator::Maze::generateRandomMaze() {
             getNeighbor(current_x, current_y, random_direction);
 
             // If reached the goal
-            if((current_x == 7 || current_x == 8) &&
-               (current_y == 7 || current_y == 8)) {
+            if((current_x == GOAL_X_0 || current_x == GOAL_X_1) &&
+               (current_y == GOAL_Y_0 || current_y == GOAL_Y_1)) {
                 
-                removeWall(7,7,RIGHT);
-                removeWall(8,7,DOWN);
-                removeWall(8,8,LEFT);
-                removeWall(7,8,UP);
+                removeWall(GOAL_X_0,GOAL_Y_0, RIGHT);
+                removeWall(GOAL_X_1,GOAL_Y_0, DOWN);
+                removeWall(GOAL_X_1,GOAL_Y_1, LEFT);
+                removeWall(GOAL_X_0,GOAL_Y_1, UP);
 
-                markAsAccessible(7,7);
-                markAsAccessible(7,8);
-                markAsAccessible(8,8);
-                markAsAccessible(8,7);
+                markAsAccessible(GOAL_X_0,GOAL_Y_0);
+                markAsAccessible(GOAL_X_1,GOAL_Y_0);
+                markAsAccessible(GOAL_X_1,GOAL_Y_1);
+                markAsAccessible(GOAL_X_0,GOAL_Y_1);
 
                 if(alternative_cells.size() > 0){
 
@@ -213,10 +174,10 @@ void Simulator::Maze::generateRandomMaze() {
             // is a random chance to remove one wall
             int chance = getRandomNumber(0,100);
             if ((current_x > 1 && current_y > 1) && // Not in the start
-                (current_x < num_cols -1 && 
-                 current_y < num_rows -1) && // Or a corner
-                ((current_x < 6 || current_x > 9) ||
-                (current_y < 6 || current_y > 9)) &&
+                (current_x < MAZE_WIDTH -1 && 
+                 current_y < MAZE_HEIGHT -1) && // Or a corner
+                ((current_x < GOAL_X_0 - 1 || current_x > GOAL_X_1 + 1 ) ||
+                 (current_y < GOAL_Y_0 - 1 || current_y > GOAL_Y_1 + 1)) &&
                 chance < CHANCE_OF_OPEN_WALL) {
 
                 // Remove random wall
@@ -229,7 +190,6 @@ void Simulator::Maze::generateRandomMaze() {
                 // Take one from the stack
                 current_x = alternative_cells.top().x;
                 current_y = alternative_cells.top().y;
-
             }
 
             alternative_cells.pop();
@@ -247,19 +207,19 @@ void Simulator::Maze::generateRandomMaze() {
 
 cv::Mat Simulator::BasicMazeInfo::drawMaze( int wait_ms, int x, int y) {
 
-    int maze_width = num_cols * CELL_SIDE; // in pixels
+    int maze_width = MAZE_WIDTH * CELL_SIDE; // in pixels
     int image_width = (/*margins*/ 2 * WINDOW_MARGIN) + 
                       maze_width;
 
-    int maze_height = num_rows * CELL_SIDE; // in pixels
+    int maze_height = MAZE_HEIGHT * CELL_SIDE; // in pixels
     int image_height = (/*margins*/ 2 * WINDOW_MARGIN) + 
                       maze_height;
     // White canvas
     cv::Mat canvas(image_width, image_height, CV_8UC3, cv::Scalar(255, 255, 255));
 
-    for (int num_row = 0; num_row < num_rows; num_row++) {
+    for (int num_row = 0; num_row < MAZE_HEIGHT; num_row++) {
 
-        for (int num_col = 0; num_col < num_cols; num_col++) {
+        for (int num_col = 0; num_col < MAZE_WIDTH; num_col++) {
             
             int x0 = WINDOW_MARGIN + (num_col * CELL_SIDE);
             int x1 = WINDOW_MARGIN + ((num_col + 1) * CELL_SIDE);
@@ -326,8 +286,8 @@ cv::Mat Simulator::BasicMazeInfo::drawMaze( int wait_ms, int x, int y) {
                         CELL_SIDE - 2,
                         CELL_SIDE - 2);
 
-    cv::Rect goal_area(WINDOW_MARGIN + 1 + (7 * CELL_SIDE),
-                       WINDOW_MARGIN + 1 + (7 * CELL_SIDE),
+    cv::Rect goal_area(WINDOW_MARGIN + 1 + (GOAL_X_0 * CELL_SIDE),
+                       WINDOW_MARGIN + 1 + (GOAL_Y_0 * CELL_SIDE),
                        (2 * CELL_SIDE) - 2,
                        (2 * CELL_SIDE) - 2);
 
@@ -355,28 +315,14 @@ cv::Mat Simulator::BasicMazeInfo::drawMaze( int wait_ms, int x, int y) {
     return canvas;
 }
 
-
-int Simulator::BasicMazeInfo::getMazeWidth() {
-
-    return num_cols;
-}
-
-
-int Simulator::BasicMazeInfo::getMazeHeight() {
-
-    return num_rows;
-}
-
-
 int Simulator::BasicMazeInfo::getWallDistance(int x, int y, Direction direction) {
 
     int distance = 0;
-    if (maze != nullptr) {
 
-        while (!maze[y][x].walls[direction]) {
-            distance++;
-            getNeighbor(x, y, direction);
-        }
+    while (!maze[y][x].walls[direction]) {
+
+        distance++;
+        getNeighbor(x, y, direction);
     }
 
     return distance;
@@ -387,10 +333,6 @@ int Simulator::BasicMazeInfo::getWallDistance(int x, int y, Direction direction)
 Simulator::MicroMouse::MicroMouse(Maze* created_maze) {
 
     observable_maze = created_maze;
-
-    setMazeHeight(observable_maze->getMazeHeight());
-    setMazeWidth(observable_maze->getMazeWidth());
-
     
     // setUp start position
     initMazeGird();
@@ -420,18 +362,18 @@ void Simulator::MicroMouse::drawMaze( int wait_ms, int x, int y) {
     switch (orientation)
     {
         case UP:
-            y_head -= 10;
+            y_head -= 7;
             break;
 
         case RIGHT:
-            x_head += 10;
+            x_head += 7;
             break;
 
         case DOWN:
-            y_head += 10;
+            y_head += 7;
             break;
         case LEFT:
-            x_head -= 10;
+            x_head -= 7;
             break;
     }
 
@@ -465,6 +407,13 @@ void Simulator::MicroMouse::getSensorReadings() {
         int updater_x = x;
         int updater_y = y;
 
+        // Add the information to the solver!!
+        maze_solver.addMeasurement(x,
+                                   y,
+                                   rotated_direction,
+                                   sensor_distance);
+
+        // Add the data to the image
         for (int num_cell = 0; num_cell < sensor_distance; num_cell++) {
 
             removeWall(updater_x, updater_y, rotated_direction);
@@ -478,7 +427,33 @@ void Simulator::MicroMouse::getSensorReadings() {
 void Simulator::MicroMouse::run() {
 
     getSensorReadings();
+    drawMaze(1,x,y);
+    maze_solver.drawMaze(10);
 
+    std::queue<Direction> path = maze_solver.getPath(x, y);
     
-    drawMaze(0,x,y);
+    for (int num_step = 0; num_step < 50; num_step++) {
+
+        getSensorReadings();
+        drawMaze(1,x,y);
+        maze_solver.drawMaze(0);
+
+         if(path.size() > 0) {
+
+            Direction next_step = path.front();
+            path.pop();
+
+            if (hasWall(x, y, next_step)) {
+
+                std::queue<Direction> new_path = maze_solver.getPath(x, y);
+
+                std::swap( path, new_path );
+            }
+            else {
+
+                orientation = next_step;
+                getNeighbor(x, y, next_step);
+            }
+        }
+    }
 }
