@@ -11,9 +11,10 @@ void Simulator::BasicMazeInfo::initMazeGird() {
         for (int num_col = 0; num_col < MAZE_WIDTH; num_col++) {
             
             maze[num_row][num_col].accessible = false;
-            for (int num_wall = 0; num_wall < 4; num_wall++) {
 
-                maze[num_row][num_col].walls[num_wall] = true;
+            for (int wall:ALL_DIRECTIONS) {
+
+                maze[num_row][num_col].walls[wall] = true;
             }
         }
     }
@@ -433,38 +434,37 @@ void Simulator::MicroMouse::getSensorReadings() {
 
 void Simulator::MicroMouse::run() {
 
+    maze_solver.setGoal(GOAL_X_0, GOAL_Y_0);
+
     getSensorReadings();
     drawMaze(1,x,y);
     maze_solver.drawMaze(0);
+    
 
     std::queue<Direction> path = maze_solver.getPath(x, y);
     
     //for (int num_step = 0; num_step < 50; num_step++) {
     while(path.size() > 0) {
 
-        drawMaze(1,x,y);
         getSensorReadings();
-        drawMaze(1,x,y);
         maze_solver.drawMaze(10, x, y, path);
+        drawMaze(150,x,y);
+        
+        // Get next step
+        Direction next_step = path.front();
+        path.pop();
 
-         if(path.size() > 0) {
-
-            Direction next_step = path.front();
-            path.pop();
-
-            drawMaze(150,x,y);
-
-            if (hasWall(x, y, next_step)) {
-
-                std::queue<Direction> new_path = maze_solver.getPath(x, y);
-
-                std::swap( path, new_path );
-            }
-            else {
-
-                orientation = next_step;
-                getNeighbor(x, y, next_step);
-            }
+        // Recompute the path
+        if (hasWall(x, y, next_step)) {
+        
+            std::queue<Direction> new_path = maze_solver.getPath(x, y);
+            std::swap( path, new_path );
+        }
+        // Go on
+        else {
+            
+            orientation = next_step;
+            getNeighbor(x, y, next_step);
         }
     }
 

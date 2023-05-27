@@ -21,7 +21,7 @@ enum Direction {
     NONE  = 4
 };
 
-
+#define ALL_DIRECTIONS {UP,RIGHT,DOWN, LEFT}
 /// Visualization parameters
 #define CELL_SIDE            30 // pixels
 #define WINDOW_MARGIN        60 // pixels

@@ -11,12 +11,11 @@ Solver::Solver() {
 
         for (int num_col = 0; num_col < MAZE_WIDTH; num_col++) {
 
-            solver_map[num_row][num_col].real_cost = -1;
-            solver_map[num_row][num_col].theoretical_cost = -1;
+            solver_map[num_row][num_col].cost = -1;
 
-            for (int num_wall = 0; num_wall < 4; num_wall++){
+            for (int wall:ALL_DIRECTIONS){
 
-                solver_map[num_row][num_col].walls[num_wall] = false;
+                solver_map[num_row][num_col].walls[wall] = false;
             }
 
             // Define the margins
@@ -38,15 +37,11 @@ Solver::Solver() {
             }
         }
     }
-
-    solver_map[STARTING_Y][STARTING_X].theoretical_cost = 0;
 }
 
 
 void Solver::addMeasurement(int x, int y, Direction direction, int distance) {
-
-    solver_map[y][x].real_cost = solver_map[y][x].theoretical_cost;
-    
+ 
     int x_to_set_wall = x;
     int y_to_set_wall = y;
 
@@ -75,6 +70,22 @@ void Solver::addWall(int x, int y,  Direction wall_to_add) {
     wall_to_add = rotateDirection(wall_to_add, 2);
 
     solver_map[y][x].walls[wall_to_add] = true;
+}
+
+
+std::vector<Direction> Solver::getAccessibleNeighbors(int x, int y) {
+
+    std::vector<Direction> accessible_neighbours;
+
+    for (Direction direction:ALL_DIRECTIONS) {
+
+        if (!solver_map[y][x].walls[direction]) {
+
+            accessible_neighbours.push_back(direction);
+        }
+    }
+
+    return accessible_neighbours;
 }
 
 
@@ -256,53 +267,70 @@ void Solver::drawMaze( int wait_ms, int x, int y, std::queue<Direction> path) {
 }
 
 
-std::queue<Direction> Solver::getPath(int x, int y) {
+void Solver::setGoal(int x, int y) {
 
-    cleanObsoleteData();
+    x_goal = x;
+    y_goal = y;
+
+    generateFirstApproachCosts();
+}
+
+
+void Solver::generateFirstApproachCosts() {
+
+    if (x_goal >= 0 && x_goal < MAZE_WIDTH &&
+        y_goal >= 0 && y_goal < MAZE_HEIGHT) {
+
+        for (int x_cell = 0; x_cell < MAZE_WIDTH; x_cell++) {
+
+            for (int y_cell = 0; y_cell < MAZE_HEIGHT; y_cell++) {
+
+                int x_difference = abs(x_goal - x_cell);
+                int y_difference = abs(y_goal - y_cell);
+
+                int approximate_cost = x_difference + y_difference;
+
+                solver_map[y_cell][x_cell].cost = approximate_cost;
+            } 
+        } 
+    }
+}
+
+
+std::queue<Direction> Solver::getPath(int x_start, int y_start) {
+
+    //generateFirstApproachCosts();
     
     std::queue<cv::Point> queue_to_explore;
 
-    // Adds the first point (current point)
-    queue_to_explore.push(cv::Point(x, y));
-
     bool goal_reached = false;
 
-    while(queue_to_explore.size() > 0 && !goal_reached) {
+    // Consume this element
+    int current_x = x_start;
+    int current_y = y_start;
 
-        // Consume this element
-        int current_x = queue_to_explore.front().x;
-        int current_y = queue_to_explore.front().y;
-        queue_to_explore.pop();
+    while(!goal_reached) {
 
-        int current_cost = 
-            solver_map[current_y][current_x].theoretical_cost;
+        Direction decreasing_direction = 
+            exploreNode(current_x, current_y, queue_to_explore); 
 
-        std::vector<Direction> possible_directions = 
-            getNonVisitedNeighbors(current_x, current_y);
+        if (decreasing_direction != NONE) {
 
-        if (possible_directions.size() > 0) {
+            getNeighbor(current_x, current_y, decreasing_direction);
+        }
 
-            // Add them to the queue and write the score down
-            for (Direction direction:possible_directions) {
-                int neighbor_x = current_x;
-                int neighbor_y = current_y;
+        while(queue_to_explore.size() > 0)  {
 
-                getNeighbor(neighbor_x, neighbor_y, direction);
+            int queue_x = queue_to_explore.front().x;
+            int queue_y = queue_to_explore.front().y;
+            queue_to_explore.pop();
 
-                solver_map[neighbor_y][neighbor_x].theoretical_cost = 
-                    current_cost + 1;
+            exploreNode(queue_x, queue_y, queue_to_explore);
+        }
 
-                queue_to_explore.push(cv::Point(neighbor_x, neighbor_y));
+        if ( current_x == x_goal && current_y == y_goal) {
 
-                if (neighbor_x >= GOAL_X_0 &&
-                    neighbor_x <= GOAL_X_1 &&
-                    neighbor_y >= GOAL_Y_0 &&
-                    neighbor_y <= GOAL_Y_1) {
-
-                    goal_reached = true;
-                    break;
-                }
-            }
+            goal_reached = true;
         }
     }
 
@@ -310,30 +338,57 @@ std::queue<Direction> Solver::getPath(int x, int y) {
 
     if (goal_reached) {
 
-        path = getReversePath(queue_to_explore.back(), cv::Point(x,y));
+        path = getDirectPath(cv::Point(x_start, y_start));
     }
 
     return path;
 }
 
 
-std::vector<Direction> Solver::getNonVisitedNeighbors(int x, int y) {
 
-    std::vector<Direction> non_visited;
+Direction Solver::exploreNode(int x_node, 
+                              int y_node, 
+                              std::queue<cv::Point>& queue_to_explore) {
 
-    for (Direction direction:{UP,RIGHT, DOWN, LEFT}) {
+    Direction decreasing_direction = NONE;
 
-        // Add non explored neighbours
-        if(!solver_map[y][x].walls[direction] &&
-            neighbor(x,y, direction).theoretical_cost == -1) {
-                
-            non_visited.push_back(direction);
+    int node_cost = 
+                solver_map[y_node][x_node].cost;
+
+    std::vector<Direction> possible_neighbors = 
+        getAccessibleNeighbors(x_node, y_node);
+    
+    Direction minim_neighbor_direction = 
+        getMaxDescendantCostNeigbour(x_node, y_node);
+    
+    int minimal_neighbor_cost = 
+            neighbor(x_node, 
+                     y_node,
+                     minim_neighbor_direction).cost;
+
+    
+    if (node_cost < minimal_neighbor_cost) {
+
+        solver_map[y_node][x_node].cost = 
+            minimal_neighbor_cost+ 1;
+
+        for(Direction possible_neighbor:possible_neighbors) {
+
+            int neighbor_x = x_node;
+            int neighbor_y = y_node;
+            
+            getNeighbor(neighbor_x, neighbor_y, possible_neighbor);
+
+            queue_to_explore.push(cv::Point(neighbor_x, neighbor_y));
         }
     }
+    else {
 
-    return non_visited;
+        decreasing_direction = minim_neighbor_direction;
+    }
+
+    return decreasing_direction;
 }
-
 
 std::queue<Direction> Solver::getReversePath(cv::Point starting_point, 
                                               cv::Point end_point) {
@@ -363,6 +418,33 @@ std::queue<Direction> Solver::getReversePath(cv::Point starting_point,
 }
 
 
+std::queue<Direction> Solver::getDirectPath(cv::Point starting_point) {
+
+    std::queue<Direction> path;
+
+    int current_x = starting_point.x;
+    int current_y = starting_point.y;
+
+    while(current_x != x_goal || current_y != y_goal) {
+
+        Direction lower_decrease = 
+            getMaxDescendantCostNeigbour(current_x, current_y);
+        getNeighbor(current_x, current_y, lower_decrease);
+
+        if (lower_decrease == NONE) {
+
+            break;
+        }
+        else {
+
+            path.push(lower_decrease);
+        }
+    }
+
+    return path;
+}
+
+
 std::queue<Direction> Solver::reverseDirections(std::vector<Direction> directions) {
     
     std::queue<Direction> reversed_directions;
@@ -384,14 +466,15 @@ Direction Solver::getMaxDescendantCostNeigbour(int x, int y){
 
     Direction lower_descend = NONE;
 
-    int min_score = solver_map[y][x].theoretical_cost;
+    // Big number
+    int min_score = 10000;
 
     for (Direction direction:{UP,RIGHT,DOWN, LEFT}) {
 
         if (!solver_map[y][x].walls[direction]) {
 
             int neighbor_cost = 
-                neighbor(x, y, direction).theoretical_cost;
+                neighbor(x, y, direction).cost;
 
             if (neighbor_cost != -1 && neighbor_cost < min_score) {
 
@@ -410,19 +493,4 @@ CellDataSolver Solver::neighbor(int x, int y, Direction direction) {
     getNeighbor(x, y, direction);
 
     return solver_map[y][x];
-}
-
-
-void Solver::cleanObsoleteData() {
-
-    for (int num_row = 0; num_row < MAZE_HEIGHT; num_row++) {
-
-        for (int num_col = 0; num_col < MAZE_WIDTH; num_col++) {
-
-            if (solver_map[num_row][num_col].real_cost == -1) {
-
-                solver_map[num_row][num_col].theoretical_cost = -1;
-            }
-        }
-    }
 }
