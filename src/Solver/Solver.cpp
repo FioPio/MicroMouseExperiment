@@ -47,12 +47,19 @@ void Solver::addMeasurement(int x, int y, Direction direction, int distance) {
 
     solver_map[y][x].real_cost = solver_map[y][x].theoretical_cost;
     
+    int x_to_set_wall = x;
+    int y_to_set_wall = y;
+
     for (int num_distance = 0; num_distance < distance; num_distance ++) {
 
-        getNeighbor(x,y, direction);
+        getNeighbor(x_to_set_wall,
+                    y_to_set_wall, 
+                    direction);
     }
 
-    addWall(x, y, direction);
+    addWall(x_to_set_wall,
+            y_to_set_wall, 
+            direction);
 }
 
 
@@ -73,7 +80,14 @@ void Solver::addWall(int x, int y,  Direction wall_to_add) {
 
 Direction rotateDirection(Direction input_direction, int rotation) {
 
-    return (Direction)((((int) input_direction) + rotation) % 4 );
+    int rotated_direction = ((int) input_direction) + rotation;
+
+    while (rotated_direction < 0 ) {
+
+        rotated_direction += 4;
+    }
+
+    return (Direction)( rotated_direction % 4 );
 }
 
 
@@ -110,8 +124,7 @@ void getNeighbor(int& x, int& y, Direction direction) {
 }
 
 
-
-void Solver::drawMaze( int wait_ms, int x, int y) {
+void Solver::drawMaze( int wait_ms, int x, int y, std::queue<Direction> path) {
 
     int maze_width = MAZE_WIDTH * CELL_SIDE; // in pixels
     int image_width = (/*margins*/ 2 * WINDOW_MARGIN) + 
@@ -204,6 +217,26 @@ void Solver::drawMaze( int wait_ms, int x, int y) {
     cv::rectangle(canvas, start_cell, cv::Scalar(0,0,255), cv::FILLED);
 
     cv::rectangle(canvas, goal_area, cv::Scalar(0,255,0), cv::FILLED);
+
+    int path_x = x;
+    int path_y = y;
+
+    while(path.size() > 0) {
+        
+        Direction next_step = path.front();
+        path.pop();
+
+        getNeighbor(path_x, path_y, next_step);
+
+        cv::Rect current_cell(WINDOW_MARGIN + 1 + (CELL_SIDE * path_x),
+                              WINDOW_MARGIN + 1 + (CELL_SIDE * path_y),
+                              CELL_SIDE - 2,
+                              CELL_SIDE - 2);
+
+
+        // Draws the cell background as blue
+        cv::rectangle(canvas, current_cell, cv::Scalar(255, 255, 0), cv::FILLED);
+    }
 
     // Draw current cell
     if (x != -1  && y != -1) {

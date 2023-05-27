@@ -48,7 +48,7 @@ public:
 
     void addMeasurement(int x, int y, Direction direction, int distance);
 
-    void drawMaze( int wait_ms = 0, int x = -1, int y = -1);
+    void drawMaze( int wait_ms = 0, int x = -1, int y = -1, std::queue<Direction> path = {});
 
     std::queue<Direction> getPath(int x, int y);
     

@@ -66,12 +66,12 @@ void Simulator::BasicMazeInfo::removeWall(int x, int y,  Direction wall_to_remov
     // But also the same wall in the neighbor
     getNeighbor(x, y, wall_to_remove);
 
-    // It is the facing wall for the neigbor
-    wall_to_remove = rotateDirection(wall_to_remove, 2);
-    //wall_to_remove = (Direction) ((((int) wall_to_remove) + 2) % 4);
+    // It is the facing wall for the neighbor
+    Direction neighbor_wall_to_remove = rotateDirection(wall_to_remove, 2);
 
-    maze[y][x].walls[wall_to_remove] = false;
+    maze[y][x].walls[neighbor_wall_to_remove] = false;
 }
+
 
 void Simulator::BasicMazeInfo::markAsAccessible(int x, int y) {
 
@@ -291,9 +291,10 @@ cv::Mat Simulator::BasicMazeInfo::drawMaze( int wait_ms, int x, int y) {
                        (2 * CELL_SIDE) - 2,
                        (2 * CELL_SIDE) - 2);
 
-    // Draws the cell background as black
+    // Paints the starting cell background as red
     cv::rectangle(canvas, start_cell, cv::Scalar(0,0,255), cv::FILLED);
 
+    // Paints the goal area background as green
     cv::rectangle(canvas, goal_area, cv::Scalar(0,255,0), cv::FILLED);
 
     // Draw current cell
@@ -305,7 +306,7 @@ cv::Mat Simulator::BasicMazeInfo::drawMaze( int wait_ms, int x, int y) {
                               CELL_SIDE - 2);
 
 
-        // Draws the cell background as black
+        // Draws the cell background as orangeish
         cv::rectangle(canvas, current_cell, cv::Scalar(5,94,255), cv::FILLED);
     }
 
@@ -339,6 +340,7 @@ Simulator::MicroMouse::MicroMouse(Maze* created_maze) {
 
     // Set it as visited
     markAsAccessible(0,0);
+
     setFrameName("Mouse");
 }
 
@@ -353,7 +355,7 @@ void Simulator::MicroMouse::drawMaze( int wait_ms, int x, int y) {
                           CELL_SIDE - 16);
 
 
-    // Draws the cell background as black
+    // Draws the cell background as orange
     cv::rectangle(canvas, current_cell, cv::Scalar(255,94,0), cv::FILLED);
 
     int x_head = current_cell.x + (current_cell.width / 2);
@@ -372,6 +374,7 @@ void Simulator::MicroMouse::drawMaze( int wait_ms, int x, int y) {
         case DOWN:
             y_head += 7;
             break;
+
         case LEFT:
             x_head -= 7;
             break;
@@ -408,8 +411,8 @@ void Simulator::MicroMouse::getSensorReadings() {
         int updater_y = y;
 
         // Add the information to the solver!!
-        maze_solver.addMeasurement(x,
-                                   y,
+        maze_solver.addMeasurement(updater_x,
+                                   updater_y,
                                    rotated_direction,
                                    sensor_distance);
 
@@ -428,20 +431,24 @@ void Simulator::MicroMouse::run() {
 
     getSensorReadings();
     drawMaze(1,x,y);
-    maze_solver.drawMaze(10);
+    maze_solver.drawMaze(0);
 
     std::queue<Direction> path = maze_solver.getPath(x, y);
     
-    for (int num_step = 0; num_step < 50; num_step++) {
+    //for (int num_step = 0; num_step < 50; num_step++) {
+    while(path.size() > 0) {
 
+        drawMaze(1,x,y);
         getSensorReadings();
         drawMaze(1,x,y);
-        maze_solver.drawMaze(0);
+        maze_solver.drawMaze(10, x, y, path);
 
          if(path.size() > 0) {
 
             Direction next_step = path.front();
             path.pop();
+
+            drawMaze(150,x,y);
 
             if (hasWall(x, y, next_step)) {
 
@@ -456,4 +463,8 @@ void Simulator::MicroMouse::run() {
             }
         }
     }
+
+    maze_solver.drawMaze(10, x, y);
+    drawMaze(0,x,y);
+
 }
