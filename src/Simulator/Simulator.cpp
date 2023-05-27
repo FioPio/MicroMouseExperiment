@@ -419,9 +419,13 @@ void Simulator::MicroMouse::getSensorReadings() {
         // Add the data to the image
         for (int num_cell = 0; num_cell < sensor_distance; num_cell++) {
 
-            removeWall(updater_x, updater_y, rotated_direction);
-            getNeighbor(updater_x, updater_y, rotated_direction);
-            markAsAccessible(updater_x, updater_y);
+            if (updater_x > -1 && updater_y > -1) {
+
+                removeWall(updater_x, updater_y, rotated_direction);
+                getNeighbor(updater_x, updater_y, rotated_direction);
+
+                markAsAccessible(updater_x, updater_y);
+            }
         }
     }
 }
